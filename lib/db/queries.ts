@@ -36,7 +36,7 @@ export async function createLogEntry(
 
 export async function getAllCompounds() {
   return prisma.compoundLibrary.findMany({
-    orderBy: { name: "asc" },
+    orderBy: [{ popularityRank: "asc" }, { name: "asc" }],
   });
 }
 

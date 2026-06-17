@@ -9,13 +9,18 @@ datasource db {
 enum CompoundCategory {
   supplement
   peptide
+  trt
 }
 
 model CompoundLibrary {
   id               String           @id @default(cuid())
   name             String           @unique
   category         CompoundCategory
+  subcategory      String?
   mechanismSummary String
+  halfLifeHours    Float?
+  popularityRank   Int?
+  isUserAdded      Boolean          @default(false)
   citations        Citation[]
   logEntries       LogEntry[]
   communityNotes   CommunityNote[]
