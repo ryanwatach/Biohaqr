@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CompoundCategory {
+  supplement
+  peptide
+}
+
+model CompoundLibrary {
+  id               String           @id @default(cuid())
+  name             String           @unique
+  category         CompoundCategory
+  mechanismSummary String
+  citations        Citation[]
+  logEntries       LogEntry[]
+  communityNotes   CommunityNote[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model Citation {
+  id         String          @id @default(cuid())
+  compoundId String
+  compound   CompoundLibrary @relation(fields: [compoundId], references: [id])
+  text       String
+  url        String?
+  createdAt  DateTime        @default(now())
+}
+
+model LogEntry {
+  id         String          @id @default(cuid())
+  userId     String
+  compoundId String
+  compound   CompoundLibrary @relation(fields: [compoundId], references: [id])
+  amount     Float
+  unit       String
+  timestamp  DateTime        @default(now())
+  note       String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+}
+
+model Biomarker {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  value     Float
+  unit      String
+  date      DateTime
+  source    String
+  createdAt DateTime @default(now())
+}
+
+model CommunityNote {
+  id         String          @id @default(cuid())
+  compoundId String
+  compound   CompoundLibrary @relation(fields: [compoundId], references: [id])
+  text       String
+  sourceUrl  String?
+  verified   Boolean         @default(false)
+  createdAt  DateTime        @default(now())
+}
