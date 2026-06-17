@@ -54,6 +54,22 @@ model Biomarker {
   date      DateTime
   source    String
   createdAt DateTime @default(now())
+
+  @@unique([userId, type, date, source])
+}
+
+model WearableConnection {
+  id                    String    @id @default(cuid())
+  userId                String
+  provider              String
+  encryptedAccessToken  String
+  encryptedRefreshToken String
+  tokenExpiresAt        DateTime
+  lastSyncedAt          DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([userId, provider])
 }
 
 model CommunityNote {
