@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
 
   const compounds = await prisma.compoundLibrary.findMany({
     where: {
+      OR: [{ isUserAdded: true }, { citations: { some: {} } }],
       ...(category && { category: category as never }),
       ...(search && {
         name: { contains: search, mode: "insensitive" as never },

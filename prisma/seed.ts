@@ -16,7 +16,7 @@ const supplements: {
   name: string;
   subcategory?: string;
   popularityRank?: number;
-  mechanismSummary: string;
+  mechanismSummary?: string;
   citations: { text: string; url?: string }[];
 }[] = [
   {
@@ -416,7 +416,7 @@ const peptides: {
   name: string;
   subcategory?: string;
   popularityRank?: number;
-  mechanismSummary: string;
+  mechanismSummary?: string;
   citations: { text: string; url?: string }[];
 }[] = [
   {
@@ -614,6 +614,11 @@ const peptides: {
       },
     ],
   },
+  // ── GLP-1 agonists — draft entries; mechanism + citations pending sourcing ──
+  { name: "Semaglutide",  subcategory: "glp1_agonist", citations: [] },
+  { name: "Tirzepatide",  subcategory: "glp1_agonist", citations: [] },
+  { name: "Retatrutide",  subcategory: "glp1_agonist", citations: [] },
+  { name: "Liraglutide",  subcategory: "glp1_agonist", citations: [] },
 ];
 
 // ── TRT ───────────────────────────────────────────────────────────────────────
@@ -622,7 +627,7 @@ const trtCompounds: {
   subcategory?: string;
   popularityRank?: number;
   halfLifeHours?: number;
-  mechanismSummary: string;
+  mechanismSummary?: string;
   citations: { text: string; url?: string }[];
 }[] = [
   {
@@ -718,7 +723,7 @@ async function upsertCompound(
     subcategory?: string;
     popularityRank?: number;
     halfLifeHours?: number;
-    mechanismSummary: string;
+    mechanismSummary?: string;
     citations: { text: string; url?: string }[];
   },
   category: CompoundCategory

@@ -11,6 +11,9 @@ export default async function NewLogEntryPage() {
   if (!user) redirect("/login");
 
   const compounds = await prisma.compoundLibrary.findMany({
+    where: {
+      OR: [{ isUserAdded: true }, { citations: { some: {} } }],
+    },
     select: {
       id: true,
       name: true,

@@ -17,7 +17,7 @@ model CompoundLibrary {
   name             String           @unique
   category         CompoundCategory
   subcategory      String?
-  mechanismSummary String
+  mechanismSummary String?
   halfLifeHours    Float?
   popularityRank   Int?
   isUserAdded      Boolean          @default(false)
