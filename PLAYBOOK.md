@@ -401,15 +401,98 @@ npx tsx prisma/seed.ts  # Seed compound library
 
 ---
 
-## What's Next (Backlog)
+## What's Next — Prioritized Build Order
 
-| Feature | Notes |
-|---|---|
-| **TRT half-life graph** | Plot plasma testosterone over time using ester `halfLifeHours` + logged doses. PK curve: Cmax × e^(-0.693t/halfLife) summed across doses |
-| **Knowledge Engine UI** | Compound detail page: AI explains mechanism, cites literature, flags interactions with other logged compounds. Only accessible via `/dashboard/compound/[id]` |
-| **Whoop real credentials** | Get WHOOP_CLIENT_ID + WHOOP_CLIENT_SECRET from developer.whoop.com; set redirect URI to `$NEXT_PUBLIC_APP_URL/api/whoop/callback` |
-| **Supabase Storage bucket** | Create `bloodwork-uploads` bucket in Supabase dashboard → enable RLS → policy: owner can read/write own files. Currently soft-fails. |
-| **Oura integration** | Mirror of Whoop OAuth flow; Oura v2 API returns HRV, RHR, sleep scores |
-| **Panel range notes** | Show footnote: "Ranges are general adult reference values — consult your physician for interpretation" |
-| **Sex/age-adjusted ranges** | Add `sex` and `age` to user profile; adjust reference ranges accordingly (e.g., testosterone normals differ significantly by sex) |
-```
+*Revised 2026-06-17 after competitive review. See Strategy & Architecture Decisions below for rationale.*
+
+| Priority | Feature | Notes |
+|---|---|---|
+| **1 — Next** | GLP-1 agonist seed entries | Semaglutide, tirzepatide, retatrutide, liraglutide added to schema under `peptide` / `glp1_agonist`. Mechanism content to be sourced from Tier 1/2 only. |
+| **2** | Knowledge base detail page | `/dashboard/compound/[id]` — displays `mechanismSummary`, citations, CommunityNotes. Populate content with verified sourcing before shipping the chatbot. |
+| **3** | Knowledge Engine chat UI | Grounded Q&A on mechanism and documented side effects from the cited library only. Requires explicit guardrails tested across multi-turn conversations. Separate design step before implementation. |
+| **4** | Interaction checker | Schema: `CompoundEnzymeProfile`, `CompoundInteraction`. Candidate generation deterministic/DB-driven. Human-verified citations gate what's shown. Generated text used only as a draft for human review — never to decide if an interaction exists. Full spec in `interaction-checker-spec.md`. |
+| **Deprioritized** | TRT half-life curve | Regimen already ships PK curves for every compound. No longer a differentiator. `halfLifeHours` field stays on the schema for future use. |
+| **Infra** | Whoop real credentials | WHOOP_CLIENT_ID + WHOOP_CLIENT_SECRET from developer.whoop.com; redirect URI = `$NEXT_PUBLIC_APP_URL/api/whoop/callback` |
+| **Infra** | Supabase Storage bucket | Create `bloodwork-uploads` in Supabase dashboard → enable RLS → owner read/write policy. Currently soft-fails — parsing works without it. |
+| **Later** | Oura integration | Mirror of Whoop OAuth flow; Oura v2 API: HRV, RHR, sleep scores |
+| **Later** | Sex/age-adjusted ranges | Add `sex` + `age` to user profile; adjust `lib/biomarkers/ranges.ts` reference ranges accordingly |
+| **Later** | Panel range disclaimer | Footnote on SnapshotTable: "Ranges are general adult reference values — consult your physician for interpretation" |
+
+---
+
+## Strategy & Architecture Decisions (2026-06-17)
+
+### Competitive Landscape (research confirmed)
+
+| Product | Relevant capability | Implication |
+|---|---|---|
+| **Regimen** | Free tier: lab/biomarker overlay on dose timeline, PK curve per compound, automated pattern-correlation engine, Apple Health + Google Health Connect sync | Half-life curve and basic bloods+wearable correlation are **no longer differentiating** — deprioritized |
+| **PeptIQ** | Chat assistant, no cited sources | Gap to beat: our Knowledge Engine must surface real citations, not just assertions |
+| **PepTracker**, **Smart Peptide Tracker**, **Shotsy** | Reviewed; none do enzyme/mechanism-based interaction checking | **Interaction checker is uncontested** in this product category |
+
+### Decision: Interaction checker over half-life curve
+
+The half-life curve was on the backlog as the next feature. After the competitive review, Regimen already ships PK curves. The interaction checker — enzymatic and pharmacodynamic — has no equivalent in any reviewed competitor.
+
+**Two distinct mechanism types the checker must handle:**
+- **Metabolic/enzymatic** — CYP450 inhibition/induction, aromatase, 5-alpha-reductase. Relevant to TRT esters and some supplements (e.g., berberine's mild CYP2D6 inhibition).
+- **Pharmacodynamic overlap** — additive or antagonistic effects at the receptor/pathway level. Relevant to most peptides, which are not CYP-metabolized.
+
+**Schema additions (not yet implemented):**
+- `CompoundEnzymeProfile` — maps compound → enzyme → effect (inhibitor/inducer/substrate) + tier + citation
+- `CompoundInteraction` — maps compound pair → mechanism type + severity + description + citations
+
+**Implementation constraint:** Candidate-generation must be deterministic and database-driven. Human-verified citations gate what is shown to users. Generated text is used only as a draft for reviewer approval — it never decides whether an interaction exists. Full spec written to `interaction-checker-spec.md` (not yet committed).
+
+### Decision: Knowledge base content before interaction checker
+
+`mechanismSummary` and `citations` already exist on `CompoundLibrary`. Populating that content thoroughly first is the right order because:
+1. The interaction checker's sourcing work (reading primary literature per compound) is the same research pass — doing it twice would be wasted effort.
+2. The detail page UI (step 2) ships useful value independently, before the checker is built.
+3. Content quality in `mechanismSummary` directly feeds the chatbot's grounding material.
+
+### Decision: Sourcing discipline
+
+Three tiers, strictly enforced:
+
+| Tier | Source | Role |
+|---|---|---|
+| **1** | Official drug labels (FDA, EMA) | Authoritative for approved compounds; always cite if available |
+| **2** | Primary peer-reviewed literature via PubMed | Direct citations; not secondary write-ups or reviews of reviews |
+| **3** | Aggregators (DrugBank, Examine, etc.) | Used as a map to locate Tier 1/2 sources — **never cited directly** |
+
+A domain practitioner's claim (blog post, podcast, forum) is a hypothesis to verify against Tier 1/2, never citation-ready content on its own. This rule was established after catching an inaccurate claim about **Dihexa's** research record before it could have entered the library — the claim was plausible-sounding but not supported by the primary literature it cited.
+
+### Decision: Chatbot approved in concept; design step required before implementation
+
+**Approved use case:** Grounded Q&A on mechanism and documented side effects drawn from the cited library. Not dosing.
+
+**Required guardrails (must be designed and tested before shipping):**
+- Descriptive language only, never directive ("this compound has been associated with X in studies" not "take X for Y")
+- Explicit constraints against multi-turn drift toward dosing-shaped follow-ups
+- Tested across multi-turn conversations, not just single questions — the risk is that a benign opening question leads to increasingly specific follow-ups
+- "Harm reduction" framing was explicitly rejected as a basis for anything beyond the interaction checker's existing descriptive flagging
+
+This is a **separate design step** before any implementation work begins.
+
+### Decision: GLP-1 agonists added to scope
+
+**Compounds:** Semaglutide, tirzepatide, retatrutide, liraglutide.
+
+**Category:** `peptide`, subcategory `glp1_agonist`.
+
+**Justification:** Consistent with the existing metformin/rapamycin precedent — off-label pharmaceutical use is in scope under the `supplement` category (or `peptide` when the compound is structurally peptidic). GLP-1 agonists are increasingly used in longevity/body-composition contexts.
+
+**Flagged for the content stage:**
+- More titration-sensitive than most of the existing library — nausea, gastroparesis, and pancreatitis risk are dose-dependent
+- FDA boxed warning on semaglutide/liraglutide: thyroid C-cell tumor signal in rodent studies (clinical significance in humans unknown but must be documented)
+- The interaction checker will need CYP-independent gastric-emptying interaction logic (GLP-1 agonists slow gastric emptying, affecting absorption timing of co-administered oral drugs)
+
+**Status:** Schema-only seed entry added; mechanism content not yet sourced or committed.
+
+### Current Build Order
+
+1. GLP-1 structural seed entries → schema + placeholder `mechanismSummary`, no content shipped until Tier 1/2 sourcing is complete
+2. Knowledge base detail page UI (`/dashboard/compound/[id]`) → `mechanismSummary`, citations, CommunityNotes
+3. Chatbot with guardrails → separate design step, then implementation
+4. Interaction checker → `CompoundEnzymeProfile` + `CompoundInteraction` schema, deterministic candidate-gen, human-verified citations
